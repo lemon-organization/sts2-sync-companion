@@ -223,6 +223,15 @@ function PairedView({
     }
   }
 
+  async function handleSetFolder(value: string) {
+    const newRoot = value.trim() || null;
+    await invoke("set_config", {
+      config: { ...config, run_root: newRoot },
+    });
+    setRunRoot(newRoot);
+    onConfigChange();
+  }
+
   async function handleToggleAutostart(next: boolean) {
     setAutostart(next);
     setToggleError(null);
@@ -280,6 +289,7 @@ function PairedView({
           runRoot={runRoot}
           autostart={autostart}
           onPickFolder={handlePickFolder}
+          onSetFolder={handleSetFolder}
           onToggleAutostart={handleToggleAutostart}
           onUnpair={handleUnpair}
         />
@@ -373,29 +383,59 @@ function SettingsPanel({
   runRoot,
   autostart,
   onPickFolder,
+  onSetFolder,
   onToggleAutostart,
   onUnpair,
 }: {
   runRoot: string | null;
   autostart: boolean;
   onPickFolder: () => void;
+  onSetFolder: (value: string) => Promise<void>;
   onToggleAutostart: (v: boolean) => void;
   onUnpair: () => void;
 }) {
+  const [folderInput, setFolderInput] = useState(runRoot ?? "");
+  const [folderSaving, setFolderSaving] = useState(false);
+
+  async function handleSetFolder() {
+    setFolderSaving(true);
+    try {
+      await onSetFolder(folderInput);
+    } finally {
+      setFolderSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Save folder */}
       <div className="bg-zinc-900 rounded-xl p-4">
-        <p className="text-zinc-400 text-xs mb-1">Save folder</p>
-        <p className="text-zinc-200 text-sm truncate mb-3">
-          {runRoot ?? "Default"}
+        <p className="text-zinc-400 text-xs mb-2">Save folder</p>
+        <p className="text-zinc-500 text-xs mb-2">
+          Leave empty to use the default save folder.
         </p>
-        <button
-          onClick={onPickFolder}
-          className="text-xs text-zinc-300 hover:text-zinc-100 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          Change…
-        </button>
+        <input
+          type="text"
+          value={folderInput}
+          onChange={(e) => setFolderInput(e.target.value)}
+          placeholder={`e.g. C:\\Users\\you\\AppData\\Roaming\\SlayTheSpire2\\steam`}
+          className="w-full bg-zinc-800 border border-zinc-700 focus:border-indigo-500 text-zinc-100 text-xs rounded-lg px-3 py-2 outline-none transition-colors placeholder:text-zinc-600 mb-3"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={() => void handleSetFolder()}
+            disabled={folderSaving}
+            className="text-xs text-zinc-300 hover:text-zinc-100 disabled:opacity-40 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {folderSaving ? "Saving…" : "Set folder"}
+          </button>
+          <button
+            onClick={onPickFolder}
+            className="text-xs text-zinc-500 hover:text-zinc-300 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            Browse…
+          </button>
+        </div>
       </div>
 
       {/* Launch on login */}

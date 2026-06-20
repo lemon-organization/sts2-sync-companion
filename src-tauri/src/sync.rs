@@ -16,57 +16,57 @@ pub struct RunFileStatus {
     pub error: Option<String>,
 }
 
-/// Returns the well-known `.run` file directories for each OS.
+/// Returns the well-known `.run` file root directories for each OS.
+/// These are the steam root directories — the actual `.run` files live
+/// deeper in `<root>/<SteamID>/profile1/saves/history/*.run`.
+/// `find_run_files` walks them recursively.
 pub fn default_run_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 
     #[cfg(target_os = "windows")]
     {
-        // %APPDATA%\SlayTheSpire2\steam\history
+        // %APPDATA%\SlayTheSpire2\steam
         if let Some(appdata) = dirs::data_dir() {
-            dirs.push(appdata.join("SlayTheSpire2").join("steam").join("history"));
+            dirs.push(appdata.join("SlayTheSpire2").join("steam"));
         }
-        // %LOCALAPPDATA%\SlayTheSpire2\steam\history
+        // %LOCALAPPDATA%\SlayTheSpire2\steam
         if let Some(local) = dirs::data_local_dir() {
-            dirs.push(local.join("SlayTheSpire2").join("steam").join("history"));
+            dirs.push(local.join("SlayTheSpire2").join("steam"));
         }
-        // %USERPROFILE%\AppData\LocalLow\Mega Crit\SlayTheSpire2\steam\history
+        // %USERPROFILE%\AppData\LocalLow\Mega Crit\SlayTheSpire2\steam
         if let Some(home) = dirs::home_dir() {
             dirs.push(
                 home.join("AppData")
                     .join("LocalLow")
                     .join("Mega Crit")
                     .join("SlayTheSpire2")
-                    .join("steam")
-                    .join("history"),
+                    .join("steam"),
             );
         }
     }
 
     #[cfg(target_os = "macos")]
     {
-        // $HOME/Library/Application Support/SlayTheSpire2/steam/history
+        // $HOME/Library/Application Support/SlayTheSpire2/steam
         if let Some(home) = dirs::home_dir() {
             dirs.push(
                 home.join("Library")
                     .join("Application Support")
                     .join("SlayTheSpire2")
-                    .join("steam")
-                    .join("history"),
+                    .join("steam"),
             );
         }
     }
 
     #[cfg(target_os = "linux")]
     {
-        // $HOME/.local/share/SlayTheSpire2/steam/history
+        // $HOME/.local/share/SlayTheSpire2/steam
         if let Some(home) = dirs::home_dir() {
             dirs.push(
                 home.join(".local")
                     .join("share")
                     .join("SlayTheSpire2")
-                    .join("steam")
-                    .join("history"),
+                    .join("steam"),
             );
         }
     }
@@ -74,23 +74,31 @@ pub fn default_run_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-/// Walks each directory and collects all files with a `.run` extension (case-insensitive).
+/// Recursively walks each root directory and collects all `.run` files
+/// that are inside a `history` path segment (case-insensitive).
+/// Uses a stack-based DFS — no additional crates required.
 /// Returns a sorted Vec of paths.
-pub fn find_run_files(dirs: &[PathBuf]) -> Vec<PathBuf> {
+pub fn find_run_files(roots: &[PathBuf]) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
-    for dir in dirs {
-        if !dir.is_dir() {
-            continue;
-        }
-        if let Ok(entries) = std::fs::read_dir(dir) {
+    for root in roots {
+        let mut stack = vec![root.clone()];
+        while let Some(dir) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&dir) else { continue };
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension() {
-                        if ext.to_string_lossy().to_lowercase() == "run" {
-                            files.push(path);
-                        }
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.is_file() {
+                    let has_run_ext = path
+                        .extension()
+                        .map(|e| e.to_ascii_lowercase() == "run")
+                        .unwrap_or(false);
+                    let in_history = path
+                        .components()
+                        .any(|c| c.as_os_str().to_ascii_lowercase() == "history");
+                    if has_run_ext && in_history {
+                        files.push(path);
                     }
                 }
             }

@@ -102,10 +102,11 @@ pub async fn pair_device(
         .set_password(KEYRING_SERVICE, KEYRING_ACCOUNT, &token)
         .map_err(|e| format!("Keychain error: {e}"))?;
 
-    // Persist device_id and app_url to config
+    // Persist device_id, app_url, and enable syncing immediately
     let mut config = load_config(&app).map_err(|e| e.to_string())?;
     config.device_id = device_id;
     config.app_url = app_url;
+    config.enabled = true;
     save_config(&app, &config).map_err(|e| e.to_string())?;
 
     Ok(())
