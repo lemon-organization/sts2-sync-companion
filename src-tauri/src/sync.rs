@@ -176,6 +176,20 @@ pub async fn upload_batch(
                 }
             }
             Ok(resp) => {
+                if !resp.status().is_success() {
+                    let status = resp.status().as_u16();
+                    let body = resp.text().await.unwrap_or_default();
+                    let err_msg = format!("HTTP {}: {}", status, body.chars().take(200).collect::<String>());
+                    for (path, _) in chunk {
+                        total_errors += 1;
+                        file_statuses.push(RunFileStatus {
+                            path: path.to_string_lossy().into_owned(),
+                            status: "error".to_string(),
+                            error: Some(err_msg.clone()),
+                        });
+                    }
+                    continue;
+                }
                 let status = resp.status();
                 match resp.json::<serde_json::Value>().await {
                     Err(e) => {
