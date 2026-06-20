@@ -179,6 +179,7 @@ function PairedView({
   const [showSettings, setShowSettings] = useState(false);
   const [autostart, setAutostart] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   // Extract hostname from config url for display
   const dashboardHost = (() => {
@@ -191,7 +192,13 @@ function PairedView({
 
   async function handleToggleEnabled(next: boolean) {
     setEnabled(next);
-    await invoke("set_enabled", { enabled: next });
+    setToggleError(null);
+    try {
+      await invoke("set_enabled", { enabled: next });
+    } catch (err) {
+      setEnabled(!next);
+      setToggleError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function handleSyncNow() {
@@ -218,7 +225,13 @@ function PairedView({
 
   async function handleToggleAutostart(next: boolean) {
     setAutostart(next);
-    await invoke("set_autostart", { enabled: next });
+    setToggleError(null);
+    try {
+      await invoke("set_autostart", { enabled: next });
+    } catch (err) {
+      setAutostart(!next);
+      setToggleError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function handleUnpair() {
@@ -292,6 +305,12 @@ function PairedView({
             <span className="text-zinc-200 text-sm">Syncing</span>
             <Toggle value={enabled} onChange={handleToggleEnabled} />
           </div>
+
+          {toggleError && (
+            <p className="mb-4 text-red-400 text-sm bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">
+              {toggleError}
+            </p>
+          )}
 
           {/* Sync Now */}
           <button
