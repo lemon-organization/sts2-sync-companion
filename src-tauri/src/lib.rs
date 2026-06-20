@@ -32,11 +32,20 @@ pub fn run() {
             // System tray
             setup_tray(app)?;
 
-            // Background sync timer: poll every 5 minutes when enabled
+            // Background sync timer: sync on startup then every 5 minutes when enabled
             let timer_app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(5 * 60)).await;
+                    // Startup: short delay to let the UI settle, then sync immediately if enabled
+                    // Subsequent loops: wait 5 minutes
+                    static FIRST: std::sync::atomic::AtomicBool =
+                        std::sync::atomic::AtomicBool::new(true);
+                    let delay = if FIRST.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                        std::time::Duration::from_secs(3)
+                    } else {
+                        std::time::Duration::from_secs(5 * 60)
+                    };
+                    tokio::time::sleep(delay).await;
 
                     let config = match config::load_config(&timer_app) {
                         Ok(c) => c,
